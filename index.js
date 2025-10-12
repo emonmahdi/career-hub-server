@@ -3,7 +3,7 @@ const app = express();
 const cors = require("cors");
 const port = process.env.PORT || 5000;
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 //middleware
 app.use(cors());
@@ -29,11 +29,39 @@ async function run() {
 
     // database collection
     const jobsCollection = client.db("careerHub_DB").collection("jobs");
+    const applicationCollection = client
+      .db("careerHub_DB")
+      .collection("application");
 
     // Get Job Api
     app.get("/jobs", async (req, res) => {
       const cursor = jobsCollection.find({});
       const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    // single data fetch
+    app.get("/jobs/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await jobsCollection.findOne(query);
+      res.send(result);
+    });
+
+    // POST Application API
+    app.post("/application", async (req, res) => {
+      const application = req.body;
+      const result = await applicationCollection.insertOne(application);
+      res.send(result);
+    });
+
+    // filter get api
+    app.get("/applications", async (req, res) => {
+      const email = req.query.email;
+      const query = {
+        applicant: email,
+      };
+      const result = await applicationCollection.find(query).toArray();
       res.send(result);
     });
 
