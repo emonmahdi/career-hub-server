@@ -35,7 +35,12 @@ async function run() {
 
     // Get Job Api
     app.get("/jobs", async (req, res) => {
-      const cursor = jobsCollection.find({});
+      const email = req.query.email;
+      let query = {};
+      if (email) {
+        query.hr_email = email;
+      }
+      const cursor = jobsCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -52,6 +57,14 @@ async function run() {
     app.post("/application", async (req, res) => {
       const application = req.body;
       const result = await applicationCollection.insertOne(application);
+      res.send(result);
+    });
+
+    // get api job application user
+    app.get("/applications/job/:job_id", async (req, res) => {
+      const job_id = req.params.job_id;
+      const query = { jobId: job_id };
+      const result = await applicationCollection.find(query).toArray();
       res.send(result);
     });
 
@@ -87,6 +100,21 @@ async function run() {
       const result = await jobsCollection.insertOne(job);
       res.send(result);
     });
+
+    // Patch Api Status Update
+    app.patch("/applications/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const status = req.body.status;
+      const updatedDoc = {
+        $set: {
+          status: status,
+        },
+      };
+      const result = await applicationCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+
 
     console.log("Career Hub Connected are successfully to MongoDB!");
   } finally {
