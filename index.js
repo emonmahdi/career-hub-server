@@ -81,6 +81,13 @@ async function run() {
       res.send(result);
     });
 
+    // POSt JOB API
+    app.post("/jobs", async (req, res) => {
+      const job = req.body;
+      const result = await jobsCollection.insertOne(job);
+      res.send(result);
+    });
+
     console.log("Career Hub Connected are successfully to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
