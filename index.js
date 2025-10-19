@@ -45,6 +45,22 @@ async function run() {
       res.send(result);
     });
 
+    // Job Count application GET API
+    app.get("/jobs/applications", async (req, res) => {
+      const email = req.query.email;
+      const query = { hr_email: email };
+      const jobs = await jobsCollection.find(query).toArray();
+
+      for (const job of jobs) {
+        const applicationQuery = { jobId: job._id.toString() };
+        const application_count = await applicationCollection.countDocuments(
+          applicationQuery
+        );
+        job.application_count = application_count;
+      }
+      res.send(jobs);
+    });
+
     // single data fetch
     app.get("/jobs/:id", async (req, res) => {
       const id = req.params.id;
@@ -114,7 +130,6 @@ async function run() {
       const result = await applicationCollection.updateOne(filter, updatedDoc);
       res.send(result);
     });
-
 
     console.log("Career Hub Connected are successfully to MongoDB!");
   } finally {
