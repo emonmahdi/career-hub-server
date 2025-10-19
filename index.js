@@ -1,13 +1,61 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const port = process.env.PORT || 5000;
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 //middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
+
+const logger = (req, res, next) => {
+  console.log("logger middleware");
+  next();
+};
+
+const verifyToken = (req, res, next) => {
+  const token = req?.cookies?.token;
+  console.log("Verify token: ", token);
+
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized Access" });
+  }
+
+  jwt.verify(token, process.env.JWT_ACCESS_SECRET, (error, decoded) => {
+    if (error) {
+      return res.status(401).send({ message: "unauthorized access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
+
+// const verifyToken = (req, res, next) => {
+//   const token = req?.cookies?.token;
+//   console.log("verify token", token);
+
+//   if (!token) {
+//     return res.status(401).send({ message: "Unauthorized Access" });
+//   }
+
+//   // verify token
+//   jwt.verify(token, process.env.JWT_ACCESS_SECRET, (err, decoded) => {
+//     if (err) {
+//       return res.status(401).send({ message: "unauthorized access" });
+//     }
+//     req.decoded = decoded;
+//     next();
+//   });
+// };
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ebn1vec.mongodb.net/careerHub_DB?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -33,6 +81,34 @@ async function run() {
       .db("careerHub_DB")
       .collection("application");
 
+    // jwt related api
+    app.post("/jwt", async (req, res) => {
+      const userInfo = req.body;
+      const token = jwt.sign(userInfo, process.env.JWT_ACCESS_SECRET, {
+        expiresIn: "1d",
+      });
+      res.cookie("token", token, {
+        httpOnly: true,
+        secure: false,
+      });
+      res.send({ message: true });
+    });
+
+    // app.post("/jwt", async (req, res) => {
+    //   const userData = req.body;
+    //   const token = jwt.sign(userData, process.env.JWT_ACCESS_SECRET, {
+    //     expiresIn: "1d",
+    //   });
+
+    //   // set the cookies
+    //   res.cookie("token", token, {
+    //     httpOnly: true,
+    //     secure: false,
+    //   });
+
+    //   res.send({ success: true });
+    // });
+
     // Get Job Api
     app.get("/jobs", async (req, res) => {
       const email = req.query.email;
@@ -46,7 +122,7 @@ async function run() {
     });
 
     // Job Count application GET API
-    app.get("/jobs/applications", async (req, res) => {
+    app.get("/jobs/applications", verifyToken, async (req, res) => {
       const email = req.query.email;
       const query = { hr_email: email };
       const jobs = await jobsCollection.find(query).toArray();
@@ -87,6 +163,13 @@ async function run() {
     // filter get api
     app.get("/applications", async (req, res) => {
       const email = req.query.email;
+
+      // if (email !== req.decoded.email) {
+      //   return res.status(403).send({ message: "forbidden access" });
+      // }
+
+      console.log("Cookies from client:", req.cookies);
+
       const query = {
         applicant: email,
       };
