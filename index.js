@@ -10,7 +10,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 //middleware
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: ["http://localhost:5173", "https://career-hub-app.web.app"],
     credentials: true,
   })
 );
@@ -48,19 +48,23 @@ const verifyToken = (req, res, next) => {
   });
 };
 
-// verifyToken Firebase
 const verifyFirebaseToken = async (req, res, next) => {
   const authHeader = req?.headers?.authorization;
-  const token = authHeader.split(" ")[1];
-  if (!token) {
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).send({ message: "Unauthorized access" });
   }
-  const userInfo = await admin.auth().verifyIdToken(token);
-  req.tokenEmail = userInfo?.email;
-  console.log(userInfo);
 
-  next();
-  // console.log(token);
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const userInfo = await admin.auth().verifyIdToken(token);
+    req.tokenEmail = userInfo.email;
+    next();
+  } catch (error) {
+    console.error("Token verify failed:", error);
+    return res.status(401).send({ message: "Invalid token" });
+  }
 };
 
 // const verifyToken = (req, res, next) => {
@@ -97,7 +101,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     // database collection
     const jobsCollection = client.db("careerHub_DB").collection("jobs");
@@ -146,8 +150,13 @@ async function run() {
     });
 
     // Job Count application GET API
-    app.get("/jobs/applications", async (req, res) => {
+    app.get("/jobs/applications", verifyFirebaseToken, async (req, res) => {
       const email = req.query.email;
+
+      if (email !== req.tokenEmail) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+
       const query = { hr_email: email };
       const jobs = await jobsCollection.find(query).toArray();
 
