@@ -17,11 +17,20 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+var admin = require("firebase-admin");
+
+var serviceAccount = require("./firebase-admin-key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
 const logger = (req, res, next) => {
   console.log("logger middleware");
   next();
 };
 
+// verify used cookie
 const verifyToken = (req, res, next) => {
   const token = req?.cookies?.token;
   console.log("Verify token: ", token);
@@ -37,6 +46,21 @@ const verifyToken = (req, res, next) => {
     req.decoded = decoded;
     next();
   });
+};
+
+// verifyToken Firebase
+const verifyFirebaseToken = async (req, res, next) => {
+  const authHeader = req?.headers?.authorization;
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  const userInfo = await admin.auth().verifyIdToken(token);
+  req.tokenEmail = userInfo?.email;
+  console.log(userInfo);
+
+  next();
+  // console.log(token);
 };
 
 // const verifyToken = (req, res, next) => {
@@ -122,7 +146,7 @@ async function run() {
     });
 
     // Job Count application GET API
-    app.get("/jobs/applications", verifyToken, async (req, res) => {
+    app.get("/jobs/applications", async (req, res) => {
       const email = req.query.email;
       const query = { hr_email: email };
       const jobs = await jobsCollection.find(query).toArray();
@@ -152,23 +176,15 @@ async function run() {
       res.send(result);
     });
 
-    // get api job application user
-    app.get("/applications/job/:job_id", async (req, res) => {
-      const job_id = req.params.job_id;
-      const query = { jobId: job_id };
-      const result = await applicationCollection.find(query).toArray();
-      res.send(result);
-    });
-
     // filter get api
-    app.get("/applications", async (req, res) => {
+    app.get("/applications", verifyFirebaseToken, async (req, res) => {
       const email = req.query.email;
 
-      // if (email !== req.decoded.email) {
-      //   return res.status(403).send({ message: "forbidden access" });
-      // }
+      if (email !== req.tokenEmail) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
 
-      console.log("Cookies from client:", req.cookies);
+      // console.log("Cookies from client:", req.cookies);
 
       const query = {
         applicant: email,
@@ -190,6 +206,14 @@ async function run() {
         application.applicationDeadline = job.applicationDeadline;
       }
 
+      res.send(result);
+    });
+
+    // get api job application user
+    app.get("/applications/job/:job_id", async (req, res) => {
+      const job_id = req.params.job_id;
+      const query = { jobId: job_id };
+      const result = await applicationCollection.find(query).toArray();
       res.send(result);
     });
 
